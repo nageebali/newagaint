@@ -1,3 +1,5 @@
+
+
 require('dotenv').config(); // Load .env file
 const express = require('express');
 const { createServer } = require('http');
@@ -10,12 +12,18 @@ const { createLogger, format, transports } = require('winston');
 const fs = require('fs');
 
 // Initialize Winston logger
-const logger = createLogger({
-  level: 'info',
-  format: format.combine(
-    format.timestamp(),
-    format.json()
-  ),
+
+const winston = require('winston');
+
+const logger = winston.createLogger({
+  transports: [
+    new winston.transports.Console(), // Only log to console
+    // Remove or comment out the file transport:
+    // new winston.transports.File({ filename: 'logs/app.log' })
+  ]
+});
+
+
   transports: [
     new transports.Console(),
     new transports.File({ filename: 'logs/error.log', level: 'error' }),
