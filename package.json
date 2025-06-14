@@ -1,11 +1,11 @@
 
 
 {
-  "name": "agantwhats34",
+  "name": "newagaint",
   "version": "1.0.0",
   "description": "WhatsApp API",
   "main": "index.js",
-  "homepage": "http://nageebali.github.io/agantwhats34/",
+  "homepage": "http://nageebali.github.io/newagaint/",
   
   "scripts": {
     "deploy": "main -d build",
