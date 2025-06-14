@@ -48,7 +48,7 @@ const qrcodes = new Map();
 // Initialize Supabase
 let supabase;
 try {
-    supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+    supabase = createClient('https://wokaxnvrmrrfkkvjbsbq.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indva2F4bnZybXJyZmtrdmpic2JxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzk5MTUwNDYsImV4cCI6MjA1NTQ5MTA0Nn0.8C_N93mSOYBb-TFhPHrTWnqvsZqB4NWyd2JksvM7nwo');
     logger.info('Supabase client initialized successfully');
 } catch (err) {
     logger.error('Failed to initialize Supabase client:', err);
