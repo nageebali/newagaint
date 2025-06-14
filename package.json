@@ -1,0 +1,41 @@
+
+
+{
+  "name": "agantwhats34",
+  "version": "1.0.0",
+  "description": "WhatsApp API",
+  "main": "index.js",
+  "homepage": "http://nageebali.github.io/agantwhats34/",
+  
+  "scripts": {
+    "deploy": "main -d build",
+    "predeploy": "npm run public",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "node  index.js",
+    "lint": "next lint",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "engines": {
+    "node": "22.13.1"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.10.0",
+    "bcrypt": "^5.1.0",
+    "body-parser": "^1.20.1",
+    "dotenv": "^16.0.3",
+    "express": "^4.21.2",
+    "qrcode": "^1.5.4",
+    "uuid": "^9.0.0",
+    "whatsapp-web.js": "^1.27.0",
+    
+    "socket.io": "^4.8.1",
+     "winston": "^3.17.0"
+
+
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
+

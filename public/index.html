@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مدير WhatsApp</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .qr-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        #qrCanvas {
+            max-width: 300px;
+            margin: 0 auto;
+            display: block;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background: white;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .log {
+            height: 200px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0,0,0,.3);
+            border-radius: 50%;
+            border-top-color: #25D366;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">مدير جلسات WhatsApp</h1>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>إدارة الجلسة</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="sessionId" class="form-label">معرف الجلسة:</label>
+                            <input type="text" class="form-control" id="sessionId" placeholder="أدخل معرفًا فريدًا للجلسة">
+                        </div>
+                        <button id="createSessionBtn" class="btn btn-primary">إنشاء جلسة</button>
+                        <button id="regenerateQrBtn" class="btn btn-secondary" disabled>تجديد QR</button>
+                    </div>
+                </div>
+
+                <div class="qr-container mt-4">
+                    <canvas id="qrCanvas"></canvas>
+                    <div id="status" class="status">في انتظار إنشاء جلسة...</div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">
+                        <h5>إرسال رسالة</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="phoneNumber" class="form-label">رقم الهاتف:</label>
+                            <input type="text" class="form-control" id="phoneNumber" placeholder="مثال: 201234567890">
+                        </div>
+                        <div class="mb-3">
+                            <label for="message" class="form-label">الرسالة:</label>
+                            <textarea class="form-control" id="message" rows="3"></textarea>
+                        </div>
+                        <button id="sendMessageBtn" class="btn btn-success" disabled>إرسال</button>
+                    </div>
+                </div>
+
+                <div class="log mt-4">
+                    <h6>سجل الأحداث:</h6>
+                    <div id="eventLog"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const socket = io();
+            let currentSessionId = null;
+            let isAuthenticated = false;
+
+            // عناصر واجهة المستخدم
+            const sessionIdInput = document.getElementById('sessionId');
+            const createSessionBtn = document.getElementById('createSessionBtn');
+            const regenerateQrBtn = document.getElementById('regenerateQrBtn');
+            const sendMessageBtn = document.getElementById('sendMessageBtn');
+            const phoneNumberInput = document.getElementById('phoneNumber');
+            const messageInput = document.getElementById('message');
+            const qrCanvas = document.getElementById('qrCanvas');
+            const statusDiv = document.getElementById('status');
+            const eventLogDiv = document.getElementById('eventLog');
+
+            // إضافة رسالة إلى سجل الأحداث
+            function logEvent(message, isError = false) {
+                const logEntry = document.createElement('div');
+                logEntry.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+                if (isError) {
+                    logEntry.style.color = 'red';
+                }
+                eventLogDiv.prepend(logEntry);
+            }
+
+            // عرض QR Code على Canvas
+            function displayQR(qrData) {
+                return new Promise((resolve, reject) => {
+                    QRCode.toCanvas(qrCanvas, qrData, {
+                        width: 300,
+                        margin: 2,
+                        color: {
+                            dark: '#075e54', // لون WhatsApp
+                            light: '#ffffff'
+                        }
+                    }, (error) => {
+                        if (error) {
+                            console.error('QR display error:', error);
+                            reject(error);
+                        } else {
+                            console.log('QR displayed successfully');
+                            resolve();
+                        }
+                    });
+                });
+            }
+
+            // إنشاء جلسة جديدة
+            createSessionBtn.addEventListener('click', async function() {
+                const sessionId = sessionIdInput.value.trim();
+
+                if (!sessionId) {
+                  //  sessionIdInput.value="currentSessionId";
+                    alert('الرجاء إدخال معرف الجلسة');
+                    return;
+                }
+
+                currentSessionId = sessionId;
+                statusDiv.innerHTML = '<span class="loading"></span> جارٍ إنشاء الجلسة...';
+                socket.emit('create_session', sessionId);
+                logEvent(`طلب إنشاء جلسة جديدة: ${sessionId}`);
+                sendMessageBtn.enabled=true
+            });
+
+            // تجديد QR Code
+            regenerateQrBtn.addEventListener('click', function() {
+                if (!currentSessionId) return;
+                statusDiv.innerHTML = '<span class="loading"></span> جارٍ تجديد QR code...';
+                socket.emit('regenerate_qr', currentSessionId);
+                logEvent(`طلب تجديد QR code للجلسة: ${currentSessionId}`);
+            });
+
+
+
+
+
+
+
+
+          // استمع لمعرف الجلسة عند الاتصال
+socket.on('currentsessionId', (sessionId) => {
+    //alert(sessionId);
+    try {
+        if (!sessionId) {
+            throw new Error('لم يتم استلام معرف جلسة صالح من الخادم');
+        }
+        
+        // تعبئة حقل معرف الجلسة تلقائيًا
+        sessionIdInput.value = sessionId;
+        currentSessionId = sessionId;
+        
+        // إظهار رسالة في سجل الأحداث
+        logEvent(`تم تعيين معرف الجلسة تلقائيًا: ${sessionId}`);
+        
+        // إعلام المستخدم (اختياري)
+        statusDiv.textContent = `جلسة جاهزة: ${sessionId}`;
+        
+    } catch (err) {
+        console.error('خطأ في معالجة معرف الجلسة:', err);
+        logEvent(`خطأ: ${err.message}`, true);
+    }
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+            // إرسال رسالة
+            sendMessageBtn.addEventListener('click', function() {
+                const phoneNumber = phoneNumberInput.value.trim();
+                const message = messageInput.value.trim();
+
+                if (!phoneNumber || !message) {
+                    alert('الرجاء إدخال رقم الهاتف والرسالة');
+                    return;
+                }
+                
+
+       
+
+                socket.emit('send_message', {
+                    sessionId: currentSessionId,
+                    phoneNumber: phoneNumber,
+                    message: message
+                }, (response) => {
+                    if (response.success) {
+                        logEvent(`تم إرسال الرسالة إلى ${phoneNumber}`);
+                        messageInput.value=""
+                    } else {
+                        logEvent(`فشل إرسال الرسالة: ${response.error}`, true);
+                    }
+                });
+            });
+
+            // استمع لأحداث السوكيت
+
+            // عند استقبال QR code
+            socket.on('qr', async (data) => {
+                try {
+                    await displayQR(data.qr);
+                    statusDiv.innerHTML = `
+                        <span class="loading"></span>
+                        يرجى مسح QR code باستخدام تطبيق WhatsApp
+                        <br><small>الجلسة: ${data.sessionId}</small>
+                    `;
+                     regenerateQrBtn.disabled = false;
+                    logEvent(`تم استقبال QR code للجلسة ${data.sessionId}`);
+                } catch (err) {
+                    console.error('Failed to display QR:', err);
+                    statusDiv.textContent = 'فشل عرض QR code';
+                    logEvent(`فشل عرض QR code: ${err.message}`, true);
+                }
+            });
+
+            // عند المصادقة الناجحة
+            socket.on('authenticated', (data) => {
+                isAuthenticated = true;
+                qrCanvas.style.display = 'none';
+                statusDiv.textContent = 'تم الاتصال بـ WhatsApp بنجاح!';
+                statusDiv.className = 'status connected';
+                sendMessageBtn.disabled = false;
+                regenerateQrBtn.disabled = true;
+                if (data.clientInfo) {
+    const userInfoDiv = document.createElement('div');
+    userInfoDiv.innerHTML = `
+      <p>اسم المستخدم: ${data.clientInfo.pushname || 'غير معروف'}</p>
+      <p>رقم الهاتف: ${data.clientInfo.wid.user || 'غير معروف'}</p>
+    `;
+    statusDiv.appendChild(userInfoDiv);
+  }
+                logEvent(`تم المصادقة بنجاح للجلسة ${data.sessionId}`);
+            });
+            // تحديثات الحالة
+           
+           
+            socket.on('status', (message) => {
+                statusDiv.textContent = message;
+                logEvent(`تحديث حالة: ${message}`);
+            });
+
+            // عند حدوث خطأ
+            socket.on('error', (error) => {
+                statusDiv.textContent = `خطأ: ${error.message || error}`;
+                statusDiv.className = 'status disconnected';
+                logEvent(`خطأ: ${error.message || error}`, true);
+            });
+
+            // عند قطع الاتصال
+            socket.on('disconnect', () => {
+                statusDiv.textContent = 'تم قطع الاتصال بالخادم';
+                statusDiv.className = 'status disconnected';
+                logEvent('تم قطع الاتصال بالخادم', true);
+            });
+        });
+    </script>
+</body>
+</html>
